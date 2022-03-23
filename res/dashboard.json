@@ -1,0 +1,272 @@
+{
+  "title": "ALL Dashboard",
+  "version": "2.0",
+  "settings": {
+    "pagenumber": 0,
+    "editable": true,
+    "parameters": {
+      "neodash_fusion_name": "PAX5 group",
+      "neodash_patient_patient_id": 780899,
+      "undefined": null
+    }
+  },
+  "pages": [
+    {
+      "title": "Analysis",
+      "reports": [
+        {
+          "title": "Fusions per patient",
+          "query": "MATCH (p:Patient)\nOPTIONAL MATCH (p)-[:HasOrder]-(o:Order)-[:HasAnalysis]-(a)-[h:HasFusion]-(f:Fusion)\nWITH p, COUNT(DISTINCT f) AS cnt\nRETURN DISTINCT cnt AS FusionsPerPatient, \nCOUNT(DISTINCT p) AS NumPatients\nORDER BY FusionsPerPatient\n\n\n",
+          "width": "4",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "FusionsPerPatient",
+            "value": "NumPatients",
+            "key": "(none)"
+          },
+          "settings": {
+            "colors": "category10"
+          }
+        },
+        {
+          "title": "TOP 10 Most Frequent Fusions + Aneuploidy",
+          "query": "MATCH (f:Fusion)-[:HasFusion]-()-[:HasAnalysis]-(:Order)-[:HasOrder]-(p:Patient)\nWITH f.name AS Fusion, COUNT(DISTINCT p) AS NumPatient\nORDER BY NumPatient DESC\nLIMIT 10\nRETURN Fusion, NumPatient\nUNION\nMATCH (a:Aneuploidy)-[:HasAneuploidy]-()-[:HasAnalysis]-(:Order)-[:HasOrder]-(p:Patient)\nWITH a.name AS Fusion, COUNT(DISTINCT p) AS NumPatient\nRETURN Fusion, NumPatient\n\n\n",
+          "width": "4",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "Fusion",
+            "value": "NumPatient",
+            "key": "(none)"
+          },
+          "settings": {
+            "legend": false,
+            "showOptionalSelections": false,
+            "groupMode": "grouped",
+            "marginBottom": 90
+          }
+        },
+        {
+          "title": "Fusion names",
+          "query": "MATCH (f:Fusion)\nRETURN f.name AS Name, COALESCE(f.other_names, []) AS OtherName\n\n\n",
+          "width": "4",
+          "type": "table",
+          "height": "3",
+          "selection": {},
+          "settings": {}
+        },
+        {
+          "title": "Select a fusion",
+          "query": "MATCH (n:`Fusion`) \nWHERE toLower(toString(n.`name`)) CONTAINS toLower($input) \nRETURN DISTINCT n.`name` as value LIMIT 5",
+          "width": "4",
+          "type": "select",
+          "height": "3",
+          "selection": {},
+          "settings": {
+            "clearParameterOnFieldClear": false,
+            "manualPropertyNameSpecification": true,
+            "type": "Node Property",
+            "entityType": "Fusion",
+            "propertyType": "name",
+            "parameterName": "neodash_fusion_name"
+          }
+        },
+        {
+          "title": "Age distribution of patients with selected fusion",
+          "query": "MATCH (p:Patient)-[:HasOrder]-(:Order)-[:HasAnalysis]-()-[:HasFusion]-(f:Fusion)\nWHERE f.name = $neodash_fusion_name \nRETURN duration.between(date(p.birthday), date()).years AS AgeInYears\n, p.gender AS Gender\n, COUNT(Distinct p) AS NumPatients\nORDER BY AgeInYears\n\n",
+          "width": "4",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "AgeInYears",
+            "value": "NumPatients",
+            "key": "Gender"
+          },
+          "settings": {
+            "legend": true,
+            "showOptionalSelections": true
+          }
+        },
+        {
+          "title": "Age at ALL-diagnosis of patients with selected fusion",
+          "query": "MATCH (p:Patient)-[:HasOrder]-(:Order)-[:HasAnalysis]-()-[:HasFusion]-(f:Fusion)\nWHERE f.name = $neodash_fusion_name \nMATCH (p)-[h:HasDiagnosis]-(d:Diagnosis)\nWHERE d.name IN [ 'Akute bilineäre Leukämie','Forschung, B-others ALL'] OR d.name =~ 'Lymphatische Vorläuferneoplasien.*'\nRETURN h.age_at_diagnosis AS AgeAtDiag\n, p.gender AS Gender\n, COUNT(Distinct p) AS NumPatients\nORDER BY AgeAtDiag\n\n\n\n",
+          "width": "4",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "AgeAtDiag",
+            "value": "NumPatients",
+            "key": "Gender"
+          },
+          "settings": {
+            "legend": true,
+            "showOptionalSelections": true
+          }
+        },
+        {
+          "title": "Some patients with the selected fusion (and their other fusions)",
+          "query": "CALL apoc.create.vNode(['Fusion'], {name: 'Hyperdiploidy'}) yield node as hyper\nCALL apoc.create.vNode(['Fusion'], {name: 'Hypodiploidy'}) yield node as hypo\nMATCH (p:Patient)-[:HasOrder]-(:Order)-[:HasAnalysis]-()-[:HasFusion]-(f1:Fusion)\nWHERE f1.name = $neodash_fusion_name\nWITH p, hyper, hypo LIMIT 30\nMATCH (p)-[ho:HasOrder]-(o:Order)-[ha:HasAnalysis]-(a)-[h:HasFusion]-(f:Fusion),\n    (a)-[om:OnMaterial]-(m:Material)\nOPTIONAL MATCH (p)-[:HasOrder]-(:Order)-[:HasAnalysis]-(:ArrayCGHAnalysis)-[:HasAneuploidy]-(y:Aneuploidy)\nWITH DISTINCT p, f, hyper, hypo, y\nCALL apoc.create.vRelationship(p,'FusionDetected',{}, f) yield rel AS relpf\nCALL apoc.create.vRelationship(p,'FusionDetected',{}, hyper) yield rel as relhyper\nCALL apoc.create.vRelationship(p,'FusionDetected',{}, hypo) yield rel as relhypo\nRETURN p, f, relpf, hyper, hypo,\nCASE y.name\n    WHEN 'Hyperdiploidy' THEN relhyper\n    WHEN 'Hypodiploidy' THEN relhypo\nEND AS relpy\n\n\n\n\n",
+          "width": "6",
+          "type": "graph",
+          "height": "6",
+          "selection": {
+            "Patient": "(id)",
+            "Fusion": "name"
+          },
+          "settings": {
+            "defaultNodeSize": 3,
+            "nodePositions": {}
+          }
+        },
+        {
+          "title": "Patients with the selected fusion",
+          "query": "MATCH (p:Patient)-[:HasOrder]-(o:Order)-[:HasAnalysis]-(a)-[h:HasFusion]-(f:Fusion),\n\t(p)-[d:HasDiagnosis]-(diag:Diagnosis)\nWHERE f.name = $neodash_fusion_name \n\tAND (diag.name IN [ 'Akute bilineäre Leukämie','Forschung, B-others ALL']\n\t\tOR diag.name =~ 'Lymphatische Vorläuferneoplasien.*')\nWITH p, o, a, h, f, d, diag\nOPTIONAL MATCH (p)-[:HasOrder]-(:Order)-[:HasAnalysis]-(a2:ArrayCGHAnalysis)\nOPTIONAL MATCH (a2)-[:HasAneuploidy]-(y:Aneuploidy)\nOPTIONAL MATCH (p)-[:HasOrder]-(:Order)-[:HasAnalysis]-(a3:KaryotypeAnalysis)\nRETURN DISTINCT p.patient_id AS PatientID\n, p.name AS Name\n, p.gender AS Gender\n//, p.birthday AS Birthday\n, duration.between(date(p.birthday), date()).years AS AgeInYears\n//,o.order_id AS OrderID, a.analysis_id AS AnalysisID, a.analytical_result AS Result, \n//,h.text AS FusionText\n//,collect(DISTINCT diag) AS Diagnosis\n,toInteger(d.age_at_diagnosis) AS AgeAtDiagnosis\n,COALESCE(collect(DISTINCT d.addition)[0], '') AS DiagnosisAddition\n,collect(DISTINCT a2.chromosomes) AS Chromosomes\n,COALESCE(y.name, '') AS Aneuploidy\n,collect(a3.analytical_result) AS Karyotype",
+          "width": "6",
+          "type": "table",
+          "height": "6",
+          "selection": {},
+          "settings": {
+            "nodePositions": {},
+            "columnWidths": "[1,2,1,1, 1, 2, 1, 1, 3]"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Patient",
+      "reports": [
+        {
+          "title": "Select a patient by ID",
+          "query": "MATCH (n:`Patient`) \nWHERE toLower(toString(n.`patient_id`)) CONTAINS toLower($input) \nRETURN DISTINCT n.`patient_id` as value LIMIT 5",
+          "width": 3,
+          "type": "select",
+          "height": 3,
+          "selection": {},
+          "settings": {
+            "clearParameterOnFieldClear": false,
+            "type": "Node Property",
+            "entityType": "Patient",
+            "propertyType": "patient_id",
+            "parameterName": "neodash_patient_patient_id"
+          }
+        },
+        {
+          "title": "Target patient information",
+          "query": "MATCH (p:Patient)-[ho:HasOrder]-(o:Order)-[ha:HasAnalysis]-(a)\nWHERE p.patient_id = $neodash_patient_patient_id\nOPTIONAL MATCH (a)-[hr:HasResult]-(r:Result)\nRETURN o.order_id AS OrderID\n, o.date AS Date\n, o.type AS OrderType\n, [l IN labels(a) WHERE l <> 'Analysis'][0] AS AnalysisType\n, a.analysis_id AS AnalysisID\n, a.analytical_result AS AnalyticalResult\n, COALESCE(hr.result_id, '') AS ResultID\n, COALESCE(hr.value, '') AS Result\n, COALESCE(r.name, '') AS ResultType\n\n\n",
+          "width": "9",
+          "type": "table",
+          "height": "3",
+          "selection": {},
+          "settings": {
+            "columnWidths": "[1,1,1,1,1,2,1,2,1]"
+          }
+        },
+        {
+          "title": "Target patient information",
+          "query": "MATCH (p:Patient)\nWHERE p.patient_id = $neodash_patient_patient_id\nOPTIONAL MATCH (p)-[ho:HasOrder]-(o:Order)-[ha:HasAnalysis]-(a)\nOPTIONAL MATCH (a)-[hr:HasResult]-(r:Result)\nOPTIONAL MATCH (p)-[hm:HasMaterial]-(m:Material)\nOPTIONAL MATCH (m)-[cf:CreatedFrom]-(m2:Material)\nOPTIONAL MATCH (m2)-[om:OnMaterial]-(a2:Analysis)\nOPTIONAL MATCH (p)-[hd:HasDiagnosis]-(d:Diagnosis)\nOPTIONAL MATCH (a)-[hf:HasFusion]-(f:Fusion)\nOPTIONAL MATCH (a)-[hy:HasAneuploidy]-(y:Aneuploidy)\nRETURN p, ho, o, ha, a, hr, r, hm, m, cf, m2, hd, d, hf, f, om, a2, hy, y\n\n",
+          "width": "6",
+          "type": "graph",
+          "height": "6",
+          "selection": {
+            "Patient": "patient_id",
+            "Order": "date",
+            "Analysis": "analysis_id",
+            "KaryotypeAnalysis": "(label)",
+            "Result": "(label)",
+            "Material": "(label)",
+            "Diagnosis": "name",
+            "RNASeqAnalysis": "(label)",
+            "Fusion": "name"
+          },
+          "settings": {
+            "hideSelections": false,
+            "nodeColorScheme": "category10",
+            "nodePositions": {},
+            "frozen": false,
+            "relationshipParticles": false
+          }
+        },
+        {
+          "title": "Similar patients (Jaccard on Fusions+Aneuploidy+Diagnoses)",
+          "query": "MATCH (p:Patient), (p2:Patient)\nWHERE p.patient_id = $neodash_patient_patient_id \n\tAND p2.patient_id <> $neodash_patient_patient_id\nOPTIONAL MATCH (p)-[:HasOrder]-(:Order)-[:HasAnalysis]-(:Analysis)-[:HasFusion]-(f:Fusion)\nOPTIONAL MATCH (p2)-[:HasOrder]-(:Order)-[:HasAnalysis]-(:Analysis)-[:HasFusion]-(f2:Fusion)\nOPTIONAL MATCH (p)-[:HasOrder]-(:Order)-[:HasAnalysis]-(:Analysis)-[:HasAneuploidy]-(y:Aneuploidy)\nOPTIONAL MATCH (p2)-[:HasOrder]-(:Order)-[:HasAnalysis]-(:Analysis)-[:HasAneuploidy]-(y2:Aneuploidy)\nWITH p, p2 \n,gds.alpha.similarity.jaccard(collect(DISTINCT id(f))+collect(DISTINCT id(y)), collect(DISTINCT id(f2))+collect(DISTINCT id(y2))) AS Similarity\nWITH p AS Target\n, p2 AS Other \n, Similarity\n, CASE \n\tWHEN Similarity < 0.1 THEN '#DEEDCF'\n    WHEN Similarity < 0.3 THEN '#74C67A'\n    WHEN Similarity < 0.7 THEN '#1D9A6C'\n    WHEN Similarity < 0.9 THEN '#137177'\n    ELSE '#0A2F51'\nEND AS Color\nWHERE Similarity > 0\nCALL apoc.create.vRelationship(Target,'SimilarTo',{similarity: Similarity, width: Similarity * 5, color: Color}, Other) yield rel\nRETURN Target, Other, rel\nORDER BY Similarity DESC\nLIMIT 30\n\n",
+          "width": "6",
+          "type": "graph",
+          "height": "6",
+          "selection": {
+            "Patient": "patient_id"
+          },
+          "settings": {
+            "nodePositions": {}
+          }
+        }
+      ]
+    },
+    {
+      "title": "Cohort Information",
+      "reports": [
+        {
+          "title": "Number of Patients",
+          "query": "MATCH (p:Patient)\nRETURN COUNT(p)\n\n\n",
+          "width": 3,
+          "type": "value",
+          "height": 3,
+          "selection": {},
+          "settings": {}
+        },
+        {
+          "title": "Patient age distribution (in years)",
+          "query": "MATCH (n:Patient) \nWITH n, duration.between(date(n.birthday), date()) as age\nRETURN age.years AS AgeInYears, n.gender AS Gender, COUNT(DISTINCT n) AS Count\nORDER BY age.years LIMIT 99\n\n\n",
+          "width": "9",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "AgeInYears",
+            "value": "Count",
+            "key": "Gender"
+          },
+          "settings": {
+            "legend": true,
+            "showOptionalSelections": true,
+            "groupMode": "stacked",
+            "barValues": false
+          }
+        },
+        {
+          "title": "Distribution of the patient's age at ALL-diagnosis (in years)",
+          "query": "MATCH (n:Patient)-[h:HasDiagnosis]-(d:Diagnosis)\nWHERE d.name =~ 'Lymphatische Vorläuferneoplasien.*'\nRETURN n.gender AS Gender, h.age_at_diagnosis AS AgeAtDiag, COUNT(DISTINCT n) AS Count\nORDER BY h.age_at_diagnosis LIMIT 100\n\n\n",
+          "width": "12",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "AgeAtDiag",
+            "value": "Count",
+            "key": "Gender"
+          },
+          "settings": {
+            "showOptionalSelections": true,
+            "legend": true
+          }
+        },
+        {
+          "title": "Most frequent non-ALL-diagnoses",
+          "query": "MATCH (n:Patient)-[:HasDiagnosis]-(d:Diagnosis)\nWHERE NOT d.name IN [ 'Akute bilineäre Leukämie','Forschung, B-others ALL']\n\tAND NOT d.name =~ 'Lymphatische Vorläuferneoplasien.*'\nWITH d, COUNT(DISTINCT n) AS c\nORDER BY c DESC LIMIT 15\nMATCH (d)-[:HasDiagnosis]-(n:Patient)\nRETURN d.name AS Diagnosis\n//, COALESCE(h.addition, '') AS Addition\n, n.gender AS Gender\n, COUNT(DISTINCT n) AS Count\n\n\n",
+          "width": "12",
+          "type": "bar",
+          "height": "3",
+          "selection": {
+            "index": "Diagnosis",
+            "value": "Count",
+            "key": "Gender"
+          },
+          "settings": {
+            "legend": true,
+            "showOptionalSelections": true,
+            "marginBottom": 100,
+            "marginTop": 12
+          }
+        }
+      ]
+    }
+  ]
+}
