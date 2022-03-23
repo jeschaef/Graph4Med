@@ -387,19 +387,15 @@ class Control:
 
     @db.transaction
     def merge_fusions(self):
-        """Merge fusions nodes with different names that refer to+
+        """Merge fusions nodes with different names that refer to
         the same mutation, e.g. "CRLF2-P2RY8" and "P2RY8-CRLF2".
         """
         log.info("Merging fusion nodes...")
 
         # Prepare queries
         queries = [
-            read_resource('cypher/delete_wrong_fusions.cypher'),
-            read_resource('cypher/merge_double_single_dash_1.cypher'),
-            read_resource('cypher/merge_double_single_dash_2.cypher'),
             read_resource('cypher/merge_gene_name_inverted.cypher'),
             read_resource('cypher/merge_bcr_abl.cypher'),
-            read_resource('cypher/merge_crlf2_p2ry8.cypher'),
             read_resource('cypher/merge_etv6_runx1.cypher'),
             read_resource('cypher/merge_tcf3_pbx1.cypher'),
             read_resource('cypher/merge_kmt2a_group.cypher'),
@@ -409,10 +405,9 @@ class Control:
         ]
 
         for q in queries:
-            # log.info(f'Running query: {q}')
-
+            log.debug(f'Running query: {q}')
             results, meta = db.cypher_query(q)
-            # log.debug(f'Executed query: {results}, {meta}')
+            log.debug(f'Executed query: {results}, {meta}')
 
     @db.transaction
     def create_results(self):
