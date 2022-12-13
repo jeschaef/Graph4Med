@@ -9,7 +9,7 @@ You can try a [live demo](http://graph4med.cs.uni-frankfurt.de/demo) (no passwor
 For more information visit the [project homepage](http://graph4med.cs.uni-frankfurt.de) 
 or read the full paper:
 
-[Schäfer, J., Tang, M., Luu, D. et al. Graph4Med: a web application and a graph database for visualizing and analyzing medical databases. BMC Bioinformatics 23, 537 (2022).](https://rdcu.be/c1uKv) [(https://doi.org/10.1186/s12859-022-05092-0)](https://doi.org/10.1186/s12859-022-05092-0)
+[Schäfer, J., Tang, M., Luu, D. et al. Graph4Med: a web application and a graph database for visualizing and analyzing medical databases. BMC Bioinformatics 23, 537 (2022).](https://rdcu.be/c1uKv) ([https://doi.org/10.1186/s12859-022-05092-0](https://doi.org/10.1186/s12859-022-05092-0))
 
 ## Prerequisites
 
